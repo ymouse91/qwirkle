@@ -175,6 +175,16 @@
     box-shadow: 0 0 14px rgba(240,192,64,0.4);
   }
   .board-cell.preview { opacity: 0.72; box-shadow: 0 0 10px rgba(255,255,255,0.15); }
+  .board-cell.last-placed > .tile {
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.85), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  @keyframes qwirkle-pulse {
+    0%,100% { box-shadow: 0 3px 8px rgba(0,0,0,0.5), 0 0 0 2px rgba(255,255,255,0.85), 0 0 12px rgba(240,192,64,0.5), inset 0 1px 0 rgba(255,255,255,0.15); }
+    50%      { box-shadow: 0 3px 8px rgba(0,0,0,0.5), 0 0 0 3px var(--accent), 0 0 24px rgba(240,192,64,0.9), inset 0 1px 0 rgba(255,255,255,0.15); transform: scale(1.08); }
+  }
+  .board-cell.qwirkle-flash > .tile {
+    animation: qwirkle-pulse 0.9s ease-in-out infinite;
+  }
 
   /* ── TILES ── */
   .tile {
@@ -301,6 +311,22 @@
   }
   #ai-bubble .ai-name { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; color:var(--accent); }
   #ai-bubble .ai-sub { font-size:13px; color:var(--text-dim); font-weight:600; margin-top:4px; }
+  #score-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 55;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  #score-overlay.shown { display: flex; }
+  #score-bubble {
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 14px; padding: 20px 28px; text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    min-width: 190px;
+  }
+  #score-bubble .score-name { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; color:var(--accent); }
+  #score-bubble .score-points { font-size:34px; font-weight:800; color:var(--green); line-height:1.1; margin-top:4px; }
+  #score-bubble .score-sub { font-size:13px; color:var(--text-dim); font-weight:700; margin-top:3px; }
   .dots span { animation: blink 1.2s infinite; display:inline-block; }
   .dots span:nth-child(2){animation-delay:.2s}
   .dots span:nth-child(3){animation-delay:.4s}
@@ -403,6 +429,15 @@
   </div>
 </div>
 
+<!-- SCORE OVERLAY -->
+<div id="score-overlay">
+  <div id="score-bubble">
+    <div class="score-name" id="score-player-name">Pelaaja</div>
+    <div class="score-points" id="score-points">+0</div>
+    <div class="score-sub">pistettä</div>
+  </div>
+</div>
+
 <!-- HEADER -->
 <div id="header">
   <div id="logo">Qwirkle</div>
@@ -463,6 +498,7 @@ let G = {};
 let sortMode = 'color'; // 'color' | 'shape'
 let discardMode = false;
 let aiTimer = null;
+let scoreTimer = null;
 
 // ══════════════════════════════════════════
 //  SETUP UI
@@ -473,8 +509,11 @@ function showSetup(skipConfirm = false) {
     return;
   }
   if (aiTimer) clearTimeout(aiTimer);
+  if (scoreTimer) clearTimeout(scoreTimer);
   aiTimer = null;
+  scoreTimer = null;
   document.getElementById('end-screen').classList.remove('shown');
+  document.getElementById('score-overlay').classList.remove('shown');
   document.getElementById('setup-modal').style.display = 'flex';
   buildSetup(true); // true = reset names/types
 }
@@ -546,13 +585,16 @@ function startGame() {
     players, bag,
     board: {},
     currentIdx: firstIdx,
-    phase: 'reveal',       // reveal | select | discard
+    phase: 'reveal',       // reveal | select | discard | scoring
     selectedTile: null,
     pendingPlacements: [], // [{col,row,tile,handIdx}]
     discardSelected: [],
     boardOffset: {x:0,y:0},
     boardInitialized: false,
-    gameOver: false
+    gameOver: false,
+    lastPlaced: [],        // [{col,row}] edellisen pelaajan sijoitukset
+    qwirkleCells: [],      // [{col,row}] qwirkle-rivien solut
+    scoreFlash: null       // {name, points}
   };
   discardMode = false;
   sortMode = 'color';
@@ -568,12 +610,16 @@ function startGame() {
 // ══════════════════════════════════════════
 function startTurn() {
   if (aiTimer) clearTimeout(aiTimer);
+  if (scoreTimer) clearTimeout(scoreTimer);
   aiTimer = null;
+  scoreTimer = null;
+  document.getElementById('score-overlay').classList.remove('shown');
   const p = currentPlayer();
   document.getElementById('current-player-name').textContent = p.name + (p.isAI?' 🤖':'');
   document.getElementById('cover-player-name').textContent = p.name;
   document.getElementById('bag-count').textContent = G.bag.length;
   G.phase = 'reveal';
+  G.scoreFlash = null;
   G.selectedTile = null;
   G.pendingPlacements = [];
   G.discardSelected = [];
@@ -605,6 +651,8 @@ function startTurn() {
     // Auto-reveal if this is the only human player
     const humanCount = G.players.filter(pl => !pl.isAI).length;
     if (humanCount <= 1) {
+      G.lastPlaced = [];
+      G.qwirkleCells = [];
       setTimeout(() => revealHand(), 0);
     }
   }
@@ -614,6 +662,8 @@ function startTurn() {
 function revealHand() {
   if (G.phase !== 'reveal' || currentPlayer().isAI) return;
   G.phase = 'select';
+  G.lastPlaced = [];
+  G.qwirkleCells = [];
   document.getElementById('hand-cover').style.display = 'none';
   document.getElementById('hand-visible').classList.add('shown');
   renderHand();
@@ -711,8 +761,17 @@ function confirmPlay() {
   for (const idx of idxs) currentPlayer().hand.splice(idx,1);
   for (const pp of G.pendingPlacements) G.board[`${pp.col},${pp.row}`] = pp.tile;
 
+  // Record last placed for highlight, find qwirkle cells
+  G.lastPlaced = G.pendingPlacements.map(pp=>({col:pp.col,row:pp.row}));
+  G.qwirkleCells = findQwirkleCells(G.pendingPlacements, G.board);
+
   G.pendingPlacements = [];
-  nextTurn();
+  renderBoard();
+  renderScores();
+  G.phase = 'scoring';
+  G.scoreFlash = {name: currentPlayer().name, points: pts};
+  saveGame();
+  showScoreOverlay(G.scoreFlash.name, G.scoreFlash.points, nextTurn);
 }
 
 // ══════════════════════════════════════════
@@ -773,7 +832,7 @@ function toggleDiscardTile(idx) {
 function updateDiscardButton() {
   const btn = document.getElementById('btn-discard');
   if (!discardMode) return;
-  btn.textContent = G.discardSelected.length === 0 ? 'Peru siirto' : 'Vahvista vaihto';
+  btn.textContent = G.discardSelected.length === 0 ? 'Peru vaihto' : 'Vahvista vaihto';
 }
 
 function confirmDiscard() {
@@ -828,6 +887,8 @@ function doAITurn() {
     for (const pp of bestMove) G.board[`${pp.col},${pp.row}`] = pp.tile;
     for (const idx of idxs) p.hand.splice(idx,1);
     p.score += pts;
+    G.lastPlaced = bestMove.map(pp=>({col:pp.col,row:pp.row}));
+    G.qwirkleCells = findQwirkleCells(bestMove, G.board);
     G.pendingPlacements = [];
     renderBoard();
     renderScores();
@@ -1031,6 +1092,26 @@ function checkTilesLine(tiles) {
   return null;
 }
 
+// Returns all cells that are part of a Qwirkle (6-tile line) formed by placements
+function findQwirkleCells(placements, board) {
+  if (!placements || placements.length === 0) return [];
+  const cells = new Set();
+  const counted = new Set();
+  for (const p of placements) {
+    for (const horiz of [true, false]) {
+      const line = getLine(p.col, p.row, horiz, board);
+      if (line.length === 6) {
+        const key = (horiz ? 'h' : 'v') + ',' + line.map(t=>horiz?t.col:t.row).sort().join('-');
+        if (!counted.has(key)) {
+          counted.add(key);
+          for (const t of line) cells.add(`${t.col},${t.row}`);
+        }
+      }
+    }
+  }
+  return [...cells].map(k=>{ const [col,row]=k.split(',').map(Number); return {col,row}; });
+}
+
 function computeScore(placements) {
   if (placements.length===0) return 0;
   const tb=buildTestBoard();
@@ -1139,10 +1220,14 @@ function renderBoard() {
   boardEl.style.height=((maxR-minR+1)*STRIDE)+'px';
 
   // Placed tiles
+  const lastSet = new Set((G.lastPlaced||[]).map(p=>`${p.col},${p.row}`));
+  const qwirkleSet = new Set((G.qwirkleCells||[]).map(p=>`${p.col},${p.row}`));
   for (const k of allKeys){
     const [col,row]=k.split(',').map(Number);
     const cell=document.createElement('div');
-    cell.className='board-cell';
+    const isQwirkle = qwirkleSet.has(k);
+    const isLast = lastSet.has(k);
+    cell.className='board-cell' + (isQwirkle?' qwirkle-flash':isLast?' last-placed':'');
     cell.style.left=((col-minC)*STRIDE)+'px';
     cell.style.top =((row-minR)*STRIDE)+'px';
     const te=makeTileEl(G.board[k]); te.style.cursor='default';
@@ -1222,6 +1307,18 @@ function endGame(){
   saveGame();
 }
 
+function showScoreOverlay(name, points, done) {
+  if (scoreTimer) clearTimeout(scoreTimer);
+  document.getElementById('score-player-name').textContent = name;
+  document.getElementById('score-points').textContent = `+${points}`;
+  document.getElementById('score-overlay').classList.add('shown');
+  scoreTimer = setTimeout(() => {
+    scoreTimer = null;
+    document.getElementById('score-overlay').classList.remove('shown');
+    done();
+  }, 1100);
+}
+
 function saveGame() {
   if (!G.players?.length) return;
   try {
@@ -1255,6 +1352,7 @@ function restoreGameUI() {
   G.discardSelected = G.discardSelected || [];
 
   document.getElementById('setup-modal').style.display = 'none';
+  document.getElementById('score-overlay').classList.remove('shown');
   document.getElementById('current-player-name').textContent = p.name + (p.isAI?' 🤖':'');
   document.getElementById('cover-player-name').textContent = p.name;
   document.getElementById('bag-count').textContent = G.bag.length;
@@ -1280,6 +1378,8 @@ function restoreGameUI() {
 
   if (G.gameOver) {
     endGame();
+  } else if (G.phase === 'scoring' && G.scoreFlash) {
+    showScoreOverlay(G.scoreFlash.name, G.scoreFlash.points, nextTurn);
   } else if (p.isAI) {
     startTurn();
   }
