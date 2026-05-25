@@ -2,7 +2,7 @@
 <html lang="fi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0f0f14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Qwirkle">
@@ -210,7 +210,7 @@
   #bottom-panel {
     background: var(--surface);
     border-top: 2px solid var(--border);
-    padding: 7px 10px;
+    padding: 7px 10px calc(7px + env(safe-area-inset-bottom, 0px));
     flex-shrink: 0;
     user-select: none;
   }
@@ -454,6 +454,7 @@ const COLORS  = ['red','orange','yellow','green','blue','purple'];
 const SHAPES  = ['circle','square','diamond','clover','star','starburst'];
 const PCOLS   = ['#f7c948','#4a9edd','#e63946','#4caf6e'];
 const STRIDE  = 54; // tile size + gap
+const SAVE_KEY = 'qwirkle-game-v1';
 
 // ══════════════════════════════════════════
 //  GAME STATE
@@ -461,6 +462,7 @@ const STRIDE  = 54; // tile size + gap
 let G = {};
 let sortMode = 'color'; // 'color' | 'shape'
 let discardMode = false;
+let aiTimer = null;
 
 // ══════════════════════════════════════════
 //  SETUP UI
@@ -470,6 +472,8 @@ function showSetup(skipConfirm = false) {
   if (!skipConfirm && activeGame && !confirm('Haluatko varmasti aloittaa uuden pelin? Nykyinen peli menetet\u00e4\u00e4n.')) {
     return;
   }
+  if (aiTimer) clearTimeout(aiTimer);
+  aiTimer = null;
   document.getElementById('end-screen').classList.remove('shown');
   document.getElementById('setup-modal').style.display = 'flex';
   buildSetup(true); // true = reset names/types
@@ -509,7 +513,9 @@ function toggleType(i) {
   }
 }
 
-buildSetup(true);
+if (!loadSavedGame()) {
+  buildSetup(true);
+}
 
 // ══════════════════════════════════════════
 //  START GAME
@@ -554,12 +560,15 @@ function startGame() {
   renderScores();
   renderBoard();
   startTurn();
+  saveGame();
 }
 
 // ══════════════════════════════════════════
 //  TURN
 // ══════════════════════════════════════════
 function startTurn() {
+  if (aiTimer) clearTimeout(aiTimer);
+  aiTimer = null;
   const p = currentPlayer();
   document.getElementById('current-player-name').textContent = p.name + (p.isAI?' 🤖':'');
   document.getElementById('cover-player-name').textContent = p.name;
@@ -588,7 +597,10 @@ function startTurn() {
     // Show AI thinking overlay
     document.getElementById('ai-thinking-name').textContent = p.name;
     document.getElementById('ai-overlay').classList.add('shown');
-    setTimeout(() => doAITurn(), 900 + Math.random()*600);
+    aiTimer = setTimeout(() => {
+      aiTimer = null;
+      doAITurn();
+    }, 900 + Math.random()*600);
   } else {
     // Auto-reveal if this is the only human player
     const humanCount = G.players.filter(pl => !pl.isAI).length;
@@ -596,6 +608,7 @@ function startTurn() {
       setTimeout(() => revealHand(), 0);
     }
   }
+  saveGame();
 }
 
 function revealHand() {
@@ -605,6 +618,7 @@ function revealHand() {
   document.getElementById('hand-visible').classList.add('shown');
   renderHand();
   renderBoard();
+  saveGame();
 }
 
 function currentPlayer() { return G.players[G.currentIdx]; }
@@ -615,7 +629,7 @@ function nextTurn() {
   document.getElementById('bag-count').textContent = G.bag.length;
   if (G.bag.length === 0 && p.hand.length === 0) {
     p.score += 6;
-    endGame(); return;
+    endGame(); saveGame(); return;
   }
   G.currentIdx = (G.currentIdx+1) % G.players.length;
   startTurn();
@@ -631,6 +645,7 @@ function selectTileInHand(idx) {
   renderHand();
   renderBoard();
   setInfo('');
+  saveGame();
 }
 
 function placeTile(col, row) {
@@ -651,6 +666,7 @@ function placeTile(col, row) {
   renderHand();
   renderBoard();
   updatePlayBtn();
+  saveGame();
 }
 
 function undoPlace() {
@@ -660,6 +676,7 @@ function undoPlace() {
   renderHand();
   renderBoard();
   updatePlayBtn();
+  saveGame();
 }
 
 function buildTestBoard() {
@@ -716,6 +733,7 @@ function sortHand() {
   renderHand();
   renderBoard();
   updatePlayBtn();
+  saveGame();
 }
 
 // ══════════════════════════════════════════
@@ -740,6 +758,7 @@ function toggleDiscard() {
   }
   updateDiscardButton();
   renderHand(); renderBoard();
+  saveGame();
 }
 
 function toggleDiscardTile(idx) {
@@ -748,6 +767,7 @@ function toggleDiscardTile(idx) {
   if (pos===-1) G.discardSelected.push(idx); else G.discardSelected.splice(pos,1);
   updateDiscardButton();
   renderHand();
+  saveGame();
 }
 
 function updateDiscardButton() {
@@ -778,6 +798,7 @@ function confirmDiscard() {
 //  AI PLAYER
 // ══════════════════════════════════════════
 function doAITurn() {
+  aiTimer = null;
   document.getElementById('ai-overlay').classList.remove('shown');
   const p = currentPlayer();
 
@@ -810,7 +831,10 @@ function doAITurn() {
     G.pendingPlacements = [];
     renderBoard();
     renderScores();
-    setTimeout(()=>nextTurn(), 400);
+    aiTimer = setTimeout(() => {
+      aiTimer = null;
+      nextTurn();
+    }, 400);
   } else {
     // Smart discard: keep best group (3+ same color or shape), discard rest
     if (G.bag.length > 0) {
@@ -1161,6 +1185,7 @@ function centerBoard(){
   const bd=document.getElementById('board');
   G.boardOffset={x:(cont.clientWidth-bd.offsetWidth)/2,y:(cont.clientHeight-bd.offsetHeight)/2};
   applyBoardOffset();
+  saveGame();
 }
 
 function applyBoardOffset(){
@@ -1194,7 +1219,76 @@ function endGame(){
         <span>${p.score} pistettä</span>
       </div>`).join('')}</div>`;
   document.getElementById('end-screen').classList.add('shown');
+  saveGame();
 }
+
+function saveGame() {
+  if (!G.players?.length) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({G, sortMode, discardMode, savedAt: Date.now()}));
+  } catch (err) {
+    console.warn('Game save failed', err);
+  }
+}
+
+function loadSavedGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (!saved?.G?.players?.length || !saved.G.bag || !saved.G.board) return false;
+    G = saved.G;
+    sortMode = saved.sortMode === 'shape' ? 'shape' : 'color';
+    discardMode = !!saved.discardMode;
+    restoreGameUI();
+    return true;
+  } catch (err) {
+    console.warn('Game restore failed', err);
+    return false;
+  }
+}
+
+function restoreGameUI() {
+  const p = currentPlayer();
+  G.boardOffset = G.boardOffset || {x:0,y:0};
+  G.pendingPlacements = G.pendingPlacements || [];
+  G.discardSelected = G.discardSelected || [];
+
+  document.getElementById('setup-modal').style.display = 'none';
+  document.getElementById('current-player-name').textContent = p.name + (p.isAI?' 🤖':'');
+  document.getElementById('cover-player-name').textContent = p.name;
+  document.getElementById('bag-count').textContent = G.bag.length;
+  document.getElementById('sort-label').textContent = sortMode==='color' ? 'väri' : 'muoto';
+
+  const handIsVisible = (G.phase === 'select' || discardMode) && !p.isAI && !G.gameOver;
+  document.getElementById('hand-cover').style.display = handIsVisible || p.isAI || G.gameOver ? 'none' : '';
+  document.getElementById('hand-visible').classList.toggle('shown', handIsVisible);
+  document.getElementById('discard-bar').classList.toggle('active', discardMode);
+
+  const discardBtn = document.getElementById('btn-discard');
+  discardBtn.textContent = discardMode
+    ? (G.discardSelected.length === 0 ? 'Peru siirto' : 'Vahvista vaihto')
+    : 'Vaihda laattoja';
+  discardBtn.classList.toggle('btn-danger', discardMode);
+  discardBtn.classList.toggle('btn-secondary', !discardMode);
+  discardBtn.onclick = discardMode ? confirmDiscard : toggleDiscard;
+
+  renderScores();
+  renderBoard();
+  if (handIsVisible) renderHand();
+  updatePlayBtn();
+
+  if (G.gameOver) {
+    endGame();
+  } else if (p.isAI) {
+    startTurn();
+  }
+}
+
+window.addEventListener('pagehide', saveGame);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') saveGame();
+});
 
 // ══════════════════════════════════════════
 //  BOARD DRAG (mouse + touch)
@@ -1212,7 +1306,7 @@ document.addEventListener('mousemove',e=>{
   G.boardOffset={x:e.clientX-drag.sx,y:e.clientY-drag.sy};
   applyBoardOffset();
 });
-document.addEventListener('mouseup',()=>{drag=null;boardContainer.classList.remove('grabbing');});
+document.addEventListener('mouseup',()=>{drag=null;boardContainer.classList.remove('grabbing');saveGame();});
 
 boardContainer.addEventListener('touchstart',e=>{
   if (e.touches.length!==1) return;
@@ -1226,7 +1320,7 @@ boardContainer.addEventListener('touchmove',e=>{
   G.boardOffset={x:t.clientX-touchDrag.sx,y:t.clientY-touchDrag.sy};
   applyBoardOffset(); e.preventDefault();
 },{passive:false});
-boardContainer.addEventListener('touchend',()=>{touchDrag=null;});
+boardContainer.addEventListener('touchend',()=>{touchDrag=null;saveGame();});
 
 // ══════════════════════════════════════════
 //  SHAPES (SVG)

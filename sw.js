@@ -1,10 +1,9 @@
-const CACHE_NAME = 'qwirkle-v1';
+const CACHE_NAME = 'qwirkle-v2';
 const PRECACHE_URLS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icon.svg',
-  './data/qwirkle.pdf'
+  './icon.svg'
 ];
 
 self.addEventListener('install', event => {
