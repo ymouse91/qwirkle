@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f0f14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Qwirkle">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./icon.svg">
+<title>Qwirkle</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0f0f14;
+    --surface: #1a1a24;
+    --surface2: #24243a;
+    --border: #333355;
+    --accent: #f0c040;
+    --accent2: #e06030;
+    --text: #e8e8f0;
+    --text-dim: #888899;
+    --cell: #1e1e2e;
+    --red: #e63946;
+    --orange: #f4843d;
+    --yellow: #f7c948;
+    --green: #4caf6e;
+    --blue: #4a9edd;
+    --purple: #9b59b6;
+    --radius: 10px;
+    --tile-size: 52px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Nunito', sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  /* ── HEADER ── */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background: var(--surface);
+    border-bottom: 2px solid var(--border);
+    flex-shrink: 0;
+    gap: 6px;
+  }
+  #logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(240,192,64,0.4);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  #turn-info {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-align: center;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #turn-info span { color: var(--accent); }
+  #header-right {
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  #bag-info {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .btn-icon {
+    padding: 5px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-icon:active { transform: scale(0.95); }
+
+  /* ── SCORES BAR ── */
+  #scores-bar {
+    display: flex;
+    gap: 5px;
+    padding: 5px 10px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    flex-shrink: 0;
+    scrollbar-width: none;
+  }
+  #scores-bar::-webkit-scrollbar { display: none; }
+  .score-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--surface2);
+    border: 2px solid transparent;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .score-chip.active {
+    border-color: var(--accent);
+    background: rgba(240,192,64,0.12);
+    box-shadow: 0 0 10px rgba(240,192,64,0.2);
+  }
+  .score-chip .player-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .score-chip .ai-badge {
+    font-size: 9px; background: rgba(255,255,255,0.12);
+    padding: 1px 4px; border-radius: 4px; color: var(--text-dim);
+  }
+
+  /* ── BOARD ── */
+  #board-container {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    cursor: grab;
+    background:
+      radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.015) 0%, transparent 70%),
+      repeating-linear-gradient(0deg, transparent, transparent 51px, rgba(255,255,255,0.025) 51px, rgba(255,255,255,0.025) 52px),
+      repeating-linear-gradient(90deg, transparent, transparent 51px, rgba(255,255,255,0.025) 51px, rgba(255,255,255,0.025) 52px),
+      var(--bg);
+  }
+  #board-container.grabbing { cursor: grabbing; }
+  #board-scroll { position: absolute; top: 0; left: 0; will-change: transform; }
+  #board { position: relative; }
+
+  .board-cell {
+    position: absolute;
+    width: var(--tile-size); height: var(--tile-size);
+    border-radius: 6px;
+    background: var(--cell);
+    border: 1px solid rgba(255,255,255,0.04);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.12s, box-shadow 0.12s;
+  }
+  .board-cell.valid-target {
+    background: rgba(240,192,64,0.1);
+    border-color: rgba(240,192,64,0.45);
+    box-shadow: 0 0 8px rgba(240,192,64,0.18);
+    cursor: pointer;
+  }
+  .board-cell.valid-target:hover, .board-cell.valid-target:active {
+    background: rgba(240,192,64,0.2);
+    box-shadow: 0 0 14px rgba(240,192,64,0.4);
+  }
+  .board-cell.preview { opacity: 0.72; box-shadow: 0 0 10px rgba(255,255,255,0.15); }
+
+  /* ── TILES ── */
+  .tile {
+    width: calc(var(--tile-size) - 6px); height: calc(var(--tile-size) - 6px);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+    flex-shrink: 0;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+    font-size: 0;
+  }
+  .tile svg { pointer-events: none; display: block; }
+  .tile:active { transform: scale(0.93); }
+  .tile.selected {
+    transform: translateY(-6px) scale(1.05);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.6), 0 0 0 3px var(--accent), inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  .tile.discard-sel {
+    transform: translateY(-4px) scale(1.03);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.5), 0 0 0 3px var(--accent2), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+  .tile.placed-preview { opacity: 0.35; cursor: default; transform: none !important; }
+  .tile[data-color="red"]    { background: linear-gradient(135deg,#c0252e,#e63946); }
+  .tile[data-color="orange"] { background: linear-gradient(135deg,#c05020,#f4843d); }
+  .tile[data-color="yellow"] { background: linear-gradient(135deg,#c09020,#f7c948); }
+  .tile[data-color="green"]  { background: linear-gradient(135deg,#2a7a48,#4caf6e); }
+  .tile[data-color="blue"]   { background: linear-gradient(135deg,#2a6aaa,#4a9edd); }
+  .tile[data-color="purple"] { background: linear-gradient(135deg,#6a3090,#9b59b6); }
+
+  /* ── BOTTOM PANEL ── */
+  #bottom-panel {
+    background: var(--surface);
+    border-top: 2px solid var(--border);
+    padding: 7px 10px;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  #hand-reveal { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+
+  #hand-cover {
+    width: 100%; padding: 13px;
+    background: var(--surface2);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    text-align: center; cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  #hand-cover:hover, #hand-cover:active { background: rgba(240,192,64,0.07); border-color: var(--accent); }
+  #hand-cover p { color: var(--text-dim); font-size: 13px; font-weight: 700; }
+  #hand-cover p strong { color: var(--accent); }
+
+  #hand-visible { display: none; width: 100%; }
+  #hand-visible.shown { display: flex; flex-direction: column; gap: 7px; }
+
+  #hand-top-row {
+    display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%;
+    flex-wrap: wrap;
+  }
+  #hand-tiles {
+    display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;
+    min-height: 46px;
+  }
+  #btn-sort {
+    flex-shrink: 0;
+    min-height: 46px;
+    padding: 5px 9px;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text-dim);
+    font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 11px;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  #btn-sort:hover { border-color: var(--accent); color: var(--accent); }
+  #btn-sort:active { transform: scale(0.95); }
+
+  #action-row {
+    display: flex; gap: 5px; width: 100%; align-items: center;
+    flex-wrap: wrap; justify-content: center;
+  }
+
+  .btn {
+    padding: 7px 14px; border-radius: 8px; border: none;
+    font-family: 'Nunito', sans-serif; font-weight: 800; font-size: 12px;
+    cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px;
+  }
+  .btn:active { transform: scale(0.95); }
+  .btn-primary { background: var(--accent); color: #1a1000; }
+  .btn-primary:hover { background: #f5d060; box-shadow: 0 0 12px rgba(240,192,64,0.35); }
+  .btn-primary:disabled { background: #444; color: #666; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #2e2e48; }
+  .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .btn-danger { background: var(--accent2); color: #fff; }
+  .btn-danger:hover { background: #f05030; }
+  .btn-warn { background: #444; color: var(--text-dim); border: 1px solid #666; }
+  .btn-warn:hover { background: #555; color: var(--text); }
+
+  #discard-bar {
+    display: none; background: rgba(224,96,48,0.13);
+    border: 1px solid var(--accent2); border-radius: 8px;
+    padding: 5px 10px; font-size: 11px; font-weight: 700;
+    color: var(--accent2); text-align: center; width: 100%;
+  }
+  #discard-bar.active { display: block; }
+
+  #placement-info {
+    font-size: 12px; font-weight: 600; text-align: center; min-height: 15px;
+    color: var(--text-dim);
+  }
+
+  /* ── AI THINKING ── */
+  #ai-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 50;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  #ai-overlay.shown { display: flex; }
+  #ai-bubble {
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 14px; padding: 20px 28px; text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  #ai-bubble .ai-name { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; color:var(--accent); }
+  #ai-bubble .ai-sub { font-size:13px; color:var(--text-dim); font-weight:600; margin-top:4px; }
+  .dots span { animation: blink 1.2s infinite; display:inline-block; }
+  .dots span:nth-child(2){animation-delay:.2s}
+  .dots span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,80%,100%{opacity:0}40%{opacity:1}}
+
+  /* ── MODALS ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; backdrop-filter: blur(4px);
+  }
+  .modal {
+    background: var(--surface); border: 2px solid var(--border);
+    border-radius: 16px; padding: 22px;
+    max-width: 370px; width: 92%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    max-height: 90dvh; overflow-y: auto;
+  }
+  .modal h2 {
+    font-family: 'Bebas Neue', sans-serif; font-size: 26px;
+    letter-spacing: 2px; color: var(--accent); margin-bottom: 14px; text-align: center;
+  }
+  .modal label {
+    display: block; font-size: 11px; font-weight: 700;
+    color: var(--text-dim); margin-bottom: 3px; margin-top: 10px;
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .modal select, .modal input[type=text] {
+    width: 100%; padding: 9px 11px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-family: 'Nunito', sans-serif; font-size: 13px; font-weight: 600;
+    outline: none; transition: border-color 0.2s;
+  }
+  .modal select:focus, .modal input:focus { border-color: var(--accent); }
+  .modal select option { background: var(--surface2); }
+
+  .player-setup-row {
+    display: flex; align-items: center; gap: 7px; margin-top: 8px;
+    padding: 8px; background: var(--surface2); border-radius: 9px;
+    border: 1px solid var(--border);
+  }
+  .player-dot-big { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .player-setup-row input { flex: 1; margin: 0; }
+  .type-toggle {
+    flex-shrink: 0; padding: 4px 9px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-dim); font-family: 'Nunito', sans-serif;
+    font-weight: 700; font-size: 11px; cursor: pointer; transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .type-toggle.ai { border-color: var(--blue); color: var(--blue); background: rgba(74,158,221,0.1); }
+  .type-toggle:hover { opacity: 0.85; }
+
+  .score-list { width: 100%; margin-top: 8px; }
+  .score-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; border-radius: 6px; margin-bottom: 4px;
+    background: var(--surface2); font-weight: 700; font-size: 13px;
+  }
+  .score-row.winner-row {
+    background: rgba(240,192,64,0.13); border: 1px solid var(--accent); color: var(--accent);
+  }
+
+  #end-screen { display: none; }
+  #end-screen.shown { display: flex; }
+</style>
+</head>
+<body>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setup-modal">
+  <div class="modal">
+    <h2>Qwirkle</h2>
+    <label>Pelaajien määrä</label>
+    <select id="player-count" onchange="buildSetup(false)">
+      <option value="2">2 pelaajaa</option>
+      <option value="3">3 pelaajaa</option>
+      <option value="4">4 pelaajaa</option>
+    </select>
+    <div id="player-names"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:18px;padding:11px;" onclick="startGame()">Aloita peli ▶</button>
+  </div>
+</div>
+
+<!-- END MODAL -->
+<div class="modal-overlay" id="end-screen">
+  <div class="modal">
+    <h2>Peli päättyi!</h2>
+    <div id="end-content"></div>
+    <button class="btn btn-primary" style="width:100%;margin-top:14px;" onclick="showSetup(true)">Uusi peli</button>
+  </div>
+</div>
+
+<!-- AI THINKING OVERLAY -->
+<div id="ai-overlay">
+  <div id="ai-bubble">
+    <div class="ai-name" id="ai-thinking-name">AI</div>
+    <div class="ai-sub">miettii<span class="dots"><span>.</span><span>.</span><span>.</span></span></div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div id="header">
+  <div id="logo">Qwirkle</div>
+  <div id="turn-info">Vuorossa: <span id="current-player-name">—</span></div>
+  <div id="header-right">
+    <div id="bag-info">Pussi: <span id="bag-count">108</span></div>
+    <button class="btn-icon" onclick="showSetup()">Uusi peli</button>
+  </div>
+</div>
+
+<!-- SCORES -->
+<div id="scores-bar"></div>
+
+<!-- BOARD -->
+<div id="board-container">
+  <div id="board-scroll"><div id="board"></div></div>
+</div>
+
+<!-- BOTTOM PANEL -->
+<div id="bottom-panel">
+  <div id="hand-reveal">
+
+    <div id="hand-cover" onclick="revealHand()">
+      <p>Kosketa paljastaaksesi <strong id="cover-player-name">pelaajan</strong> käden</p>
+    </div>
+
+    <div id="hand-visible">
+      <div id="discard-bar">Valitse laattoja vaihdettavaksi, sitten "Vahvista vaihto"</div>
+      <div id="hand-top-row">
+        <div id="hand-tiles"></div>
+        <button id="btn-sort" onclick="sortHand()">Lajittele<br><span id="sort-label">väri</span></button>
+      </div>
+      <div id="placement-info"></div>
+      <div id="action-row">
+        <button class="btn btn-primary"    id="btn-play"    onclick="confirmPlay()"   disabled>Pelaa vuoro</button>
+        <button class="btn btn-warn"       id="btn-undo"    onclick="undoPlace()"     disabled>Peru</button>
+        <button class="btn btn-secondary"  id="btn-discard" onclick="toggleDiscard()">Vaihda laattoja</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════
+const COLORS  = ['red','orange','yellow','green','blue','purple'];
+const SHAPES  = ['circle','square','diamond','clover','star','starburst'];
+const PCOLS   = ['#f7c948','#4a9edd','#e63946','#4caf6e'];
+const STRIDE  = 54; // tile size + gap
+
+// ══════════════════════════════════════════
+//  GAME STATE
+// ══════════════════════════════════════════
+let G = {};
+let sortMode = 'color'; // 'color' | 'shape'
+let discardMode = false;
+
+// ══════════════════════════════════════════
+//  SETUP UI
+// ══════════════════════════════════════════
+function showSetup(skipConfirm = false) {
+  const activeGame = G.players?.length && !G.gameOver;
+  if (!skipConfirm && activeGame && !confirm('Haluatko varmasti aloittaa uuden pelin? Nykyinen peli menetet\u00e4\u00e4n.')) {
+    return;
+  }
+  document.getElementById('end-screen').classList.remove('shown');
+  document.getElementById('setup-modal').style.display = 'flex';
+  buildSetup(true); // true = reset names/types
+}
+
+function buildSetup(reset = false) {
+  const count = +document.getElementById('player-count').value;
+  const namesDiv = document.getElementById('player-names');
+  // preserve existing names/types only when changing player count (not on full reset)
+  const prev = reset ? [] : Array.from(namesDiv.querySelectorAll('.player-setup-row')).map(row => ({
+    name: row.querySelector('input').value,
+    isAI: row.querySelector('.type-toggle').classList.contains('ai')
+  }));
+  namesDiv.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const name = prev[i]?.name ?? `Pelaaja ${i+1}`;
+    const isAI = prev[i]?.isAI ?? false;
+    namesDiv.innerHTML += `
+      <div class="player-setup-row" id="prow-${i}">
+        <div class="player-dot-big" style="background:${PCOLS[i]}"></div>
+        <input type="text" id="pname-${i}" value="${name}" placeholder="Pelaaja ${i+1}"/>
+        <button class="type-toggle ${isAI?'ai':''}" id="ptype-${i}" onclick="toggleType(${i})">
+          ${isAI?'🤖 AI':'👤 Ihminen'}
+        </button>
+      </div>`;
+  }
+}
+
+function toggleType(i) {
+  const btn = document.getElementById(`ptype-${i}`);
+  const isAI = !btn.classList.contains('ai');
+  btn.classList.toggle('ai', isAI);
+  btn.textContent = isAI ? '🤖 AI' : '👤 Ihminen';
+  if (isAI) {
+    const inp = document.getElementById(`pname-${i}`);
+    if (inp.value.startsWith('Pelaaja')) inp.value = `AI ${i+1}`;
+  }
+}
+
+buildSetup(true);
+
+// ══════════════════════════════════════════
+//  START GAME
+// ══════════════════════════════════════════
+function startGame() {
+  const count = +document.getElementById('player-count').value;
+
+  let bag = [];
+  for (const c of COLORS) for (const s of SHAPES) for (let k=0;k<3;k++) bag.push({color:c,shape:s});
+  shuffle(bag);
+
+  const players = Array.from({length:count},(_,i)=>({
+    name:  document.getElementById(`pname-${i}`).value.trim() || `Pelaaja ${i+1}`,
+    color: PCOLS[i],
+    isAI:  document.getElementById(`ptype-${i}`).classList.contains('ai'),
+    score: 0,
+    hand:  bag.splice(0,6)
+  }));
+
+  // First player: most matching non-duplicate tiles
+  let firstIdx=0, firstBest=0;
+  for (let i=0;i<players.length;i++){
+    const b=bestGroupSize(players[i].hand);
+    if(b>firstBest){firstBest=b;firstIdx=i;}
+  }
+
+  G = {
+    players, bag,
+    board: {},
+    currentIdx: firstIdx,
+    phase: 'reveal',       // reveal | select | discard
+    selectedTile: null,
+    pendingPlacements: [], // [{col,row,tile,handIdx}]
+    discardSelected: [],
+    boardOffset: {x:0,y:0},
+    boardInitialized: false,
+    gameOver: false
+  };
+  discardMode = false;
+  sortMode = 'color';
+  document.getElementById('setup-modal').style.display = 'none';
+  renderScores();
+  renderBoard();
+  startTurn();
+}
+
+// ══════════════════════════════════════════
+//  TURN
+// ══════════════════════════════════════════
+function startTurn() {
+  const p = currentPlayer();
+  document.getElementById('current-player-name').textContent = p.name + (p.isAI?' 🤖':'');
+  document.getElementById('cover-player-name').textContent = p.name;
+  document.getElementById('bag-count').textContent = G.bag.length;
+  G.phase = 'reveal';
+  G.selectedTile = null;
+  G.pendingPlacements = [];
+  G.discardSelected = [];
+  discardMode = false;
+
+  document.getElementById('hand-cover').style.display = '';
+  document.getElementById('hand-visible').classList.remove('shown');
+  document.getElementById('discard-bar').classList.remove('active');
+  document.getElementById('btn-discard').textContent = 'Vaihda laattoja';
+  document.getElementById('btn-discard').classList.remove('btn-danger');
+  document.getElementById('btn-discard').classList.add('btn-secondary');
+  document.getElementById('btn-discard').onclick = toggleDiscard;
+  document.getElementById('btn-play').disabled = true;
+  document.getElementById('btn-undo').disabled = true;
+  setInfo('');
+  renderBoard();
+  renderScores();
+
+  if (p.isAI) {
+    document.getElementById('hand-cover').style.display = 'none';
+    // Show AI thinking overlay
+    document.getElementById('ai-thinking-name').textContent = p.name;
+    document.getElementById('ai-overlay').classList.add('shown');
+    setTimeout(() => doAITurn(), 900 + Math.random()*600);
+  } else {
+    // Auto-reveal if this is the only human player
+    const humanCount = G.players.filter(pl => !pl.isAI).length;
+    if (humanCount <= 1) {
+      setTimeout(() => revealHand(), 0);
+    }
+  }
+}
+
+function revealHand() {
+  if (G.phase !== 'reveal' || currentPlayer().isAI) return;
+  G.phase = 'select';
+  document.getElementById('hand-cover').style.display = 'none';
+  document.getElementById('hand-visible').classList.add('shown');
+  renderHand();
+  renderBoard();
+}
+
+function currentPlayer() { return G.players[G.currentIdx]; }
+
+function nextTurn() {
+  const p = currentPlayer();
+  while (p.hand.length < 6 && G.bag.length > 0) p.hand.push(G.bag.pop());
+  document.getElementById('bag-count').textContent = G.bag.length;
+  if (G.bag.length === 0 && p.hand.length === 0) {
+    p.score += 6;
+    endGame(); return;
+  }
+  G.currentIdx = (G.currentIdx+1) % G.players.length;
+  startTurn();
+}
+
+// ══════════════════════════════════════════
+//  HAND: SELECT / PLACE
+// ══════════════════════════════════════════
+function selectTileInHand(idx) {
+  if (G.phase !== 'select' || discardMode) return;
+  if (G.pendingPlacements.some(pp=>pp.handIdx===idx)) return;
+  G.selectedTile = G.selectedTile === idx ? null : idx;
+  renderHand();
+  renderBoard();
+  setInfo('');
+}
+
+function placeTile(col, row) {
+  if (G.phase !== 'select') return;
+  if (G.selectedTile === null) { setInfo('Valitse ensin laatta kädestä','err'); return; }
+  const tile = currentPlayer().hand[G.selectedTile];
+
+  if (G.board[`${col},${row}`] || G.pendingPlacements.some(pp=>pp.col===col&&pp.row===row)) {
+    setInfo('Ruutu on jo varattu','err'); return;
+  }
+  const testBoard = buildTestBoard();
+  testBoard[`${col},${row}`] = tile;
+  const err = validateMove([...G.pendingPlacements,{col,row,tile}], testBoard);
+  if (err) { setInfo(err,'err'); return; }
+
+  G.pendingPlacements.push({col,row,tile,handIdx:G.selectedTile});
+  G.selectedTile = null;
+  renderHand();
+  renderBoard();
+  updatePlayBtn();
+}
+
+function undoPlace() {
+  if (G.pendingPlacements.length === 0) return;
+  G.pendingPlacements.pop();
+  G.selectedTile = null;
+  renderHand();
+  renderBoard();
+  updatePlayBtn();
+}
+
+function buildTestBoard() {
+  const b = {...G.board};
+  for (const pp of G.pendingPlacements) b[`${pp.col},${pp.row}`] = pp.tile;
+  return b;
+}
+
+function updatePlayBtn() {
+  const btn = document.getElementById('btn-play');
+  const undoBtn = document.getElementById('btn-undo');
+  undoBtn.disabled = G.pendingPlacements.length === 0;
+  if (G.pendingPlacements.length === 0) { btn.disabled=true; setInfo(''); return; }
+  const err = validateMove(G.pendingPlacements, buildTestBoard());
+  if (err) { btn.disabled=true; setInfo(err,'err'); }
+  else {
+    btn.disabled = false;
+    const pts = computeScore(G.pendingPlacements);
+    setInfo(`+${pts} pistettä 🎯`,'ok');
+  }
+}
+
+function confirmPlay() {
+  if (G.phase!=='select' || G.pendingPlacements.length===0) return;
+  const err = validateMove(G.pendingPlacements, buildTestBoard());
+  if (err) { setInfo(err,'err'); return; }
+
+  const pts = computeScore(G.pendingPlacements);
+  currentPlayer().score += pts;
+
+  const idxs = [...new Set(G.pendingPlacements.map(p=>p.handIdx))].sort((a,b)=>b-a);
+  for (const idx of idxs) currentPlayer().hand.splice(idx,1);
+  for (const pp of G.pendingPlacements) G.board[`${pp.col},${pp.row}`] = pp.tile;
+
+  G.pendingPlacements = [];
+  nextTurn();
+}
+
+// ══════════════════════════════════════════
+//  SORT HAND
+// ══════════════════════════════════════════
+function sortHand() {
+  sortMode = sortMode==='color' ? 'shape' : 'color';
+  document.getElementById('sort-label').textContent = sortMode==='color' ? 'väri' : 'muoto';
+  const p = currentPlayer();
+  if (sortMode==='color') {
+    p.hand.sort((a,b)=>COLORS.indexOf(a.color)-COLORS.indexOf(b.color)||SHAPES.indexOf(a.shape)-SHAPES.indexOf(b.shape));
+  } else {
+    p.hand.sort((a,b)=>SHAPES.indexOf(a.shape)-SHAPES.indexOf(b.shape)||COLORS.indexOf(a.color)-COLORS.indexOf(b.color));
+  }
+  // Reset pending placements (indices changed)
+  G.pendingPlacements = [];
+  G.selectedTile = null;
+  renderHand();
+  renderBoard();
+  updatePlayBtn();
+}
+
+// ══════════════════════════════════════════
+//  DISCARD
+// ══════════════════════════════════════════
+function toggleDiscard() {
+  discardMode = !discardMode;
+  G.discardSelected = [];
+  G.pendingPlacements = [];
+  G.selectedTile = null;
+  const bar = document.getElementById('discard-bar');
+  const btn = document.getElementById('btn-discard');
+  if (discardMode) {
+    bar.classList.add('active');
+    btn.classList.remove('btn-secondary'); btn.classList.add('btn-danger');
+    btn.onclick = confirmDiscard;
+  } else {
+    bar.classList.remove('active');
+    btn.textContent = 'Vaihda laattoja';
+    btn.classList.remove('btn-danger'); btn.classList.add('btn-secondary');
+    btn.onclick = toggleDiscard;
+  }
+  updateDiscardButton();
+  renderHand(); renderBoard();
+}
+
+function toggleDiscardTile(idx) {
+  if (!discardMode) return;
+  const pos = G.discardSelected.indexOf(idx);
+  if (pos===-1) G.discardSelected.push(idx); else G.discardSelected.splice(pos,1);
+  updateDiscardButton();
+  renderHand();
+}
+
+function updateDiscardButton() {
+  const btn = document.getElementById('btn-discard');
+  if (!discardMode) return;
+  btn.textContent = G.discardSelected.length === 0 ? 'Peru siirto' : 'Vahvista vaihto';
+}
+
+function confirmDiscard() {
+  if (G.discardSelected.length===0) { toggleDiscard(); return; }
+  if (G.discardSelected.length > G.bag.length) { setInfo('Pussissa ei ole tarpeeksi laattoja','err'); return; }
+  const p = currentPlayer();
+  const newTiles = G.bag.splice(0, G.discardSelected.length);
+  const sorted = [...G.discardSelected].sort((a,b)=>b-a);
+  const disc = sorted.map(i=>p.hand.splice(i,1)[0]);
+  G.bag.push(...disc); shuffle(G.bag);
+  p.hand.push(...newTiles);
+  discardMode = false;
+  document.getElementById('btn-discard').textContent = 'Vaihda laattoja';
+  document.getElementById('btn-discard').classList.remove('btn-danger');
+  document.getElementById('btn-discard').classList.add('btn-secondary');
+  document.getElementById('btn-discard').onclick = toggleDiscard;
+  document.getElementById('discard-bar').classList.remove('active');
+  nextTurn();
+}
+
+// ══════════════════════════════════════════
+//  AI PLAYER
+// ══════════════════════════════════════════
+function doAITurn() {
+  document.getElementById('ai-overlay').classList.remove('shown');
+  const p = currentPlayer();
+
+  // Find best move: try all subsets of hand that share color or shape
+  let bestMove = null, bestScore = -1;
+
+  // Generate all valid multi-tile placements greedily
+  // Try each tile as seed, then extend
+  for (let seedIdx=0; seedIdx<p.hand.length; seedIdx++) {
+    const move = aiGreedyExtend(seedIdx);
+    if (move) {
+      // temporarily apply
+      const savedBoard = {...G.board};
+      const savedPending = G.pendingPlacements;
+      G.pendingPlacements = move;
+      const sc = computeScore(move);
+      G.pendingPlacements = savedPending;
+      if (sc > bestScore) { bestScore=sc; bestMove=move; }
+    }
+  }
+
+  if (bestMove && bestScore >= 0) {
+    // Apply move
+    const idxs = [...new Set(bestMove.map(p=>p.handIdx))].sort((a,b)=>b-a);
+    const pts = bestScore;
+    // place tiles one by one with animation delay
+    for (const pp of bestMove) G.board[`${pp.col},${pp.row}`] = pp.tile;
+    for (const idx of idxs) p.hand.splice(idx,1);
+    p.score += pts;
+    G.pendingPlacements = [];
+    renderBoard();
+    renderScores();
+    setTimeout(()=>nextTurn(), 400);
+  } else {
+    // Smart discard: keep best group (3+ same color or shape), discard rest
+    if (G.bag.length > 0) {
+      const keepIdxs = aiBestKeepGroup(p.hand);
+      const discardIdxs = p.hand.map((_,i)=>i).filter(i=>!keepIdxs.has(i));
+      const discardCount = Math.min(discardIdxs.length, G.bag.length);
+      if (discardCount > 0) {
+        const newTiles = G.bag.splice(0, discardCount);
+        // Remove from highest index first
+        const toDiscard = discardIdxs.slice(0, discardCount).sort((a,b)=>b-a);
+        const disc = toDiscard.map(i => p.hand.splice(i,1)[0]);
+        G.bag.push(...disc); shuffle(G.bag);
+        p.hand.push(...newTiles);
+      }
+    }
+    nextTurn();
+  }
+}
+
+// Returns Set of hand indices to KEEP (best group of 3+ sharing color or shape)
+function aiBestKeepGroup(hand) {
+  let bestIdxs = new Set();
+  // Try each color group
+  for (const color of COLORS) {
+    const idxs = hand.map((t,i)=>t.color===color?i:-1).filter(i=>i>=0);
+    // Deduplicate by shape
+    const seen = new Set();
+    const unique = idxs.filter(i=>{ if(seen.has(hand[i].shape)) return false; seen.add(hand[i].shape); return true; });
+    if (unique.length >= 3 && unique.length > bestIdxs.size) bestIdxs = new Set(unique);
+  }
+  // Try each shape group
+  for (const shape of SHAPES) {
+    const idxs = hand.map((t,i)=>t.shape===shape?i:-1).filter(i=>i>=0);
+    const seen = new Set();
+    const unique = idxs.filter(i=>{ if(seen.has(hand[i].color)) return false; seen.add(hand[i].color); return true; });
+    if (unique.length >= 3 && unique.length > bestIdxs.size) bestIdxs = new Set(unique);
+  }
+  return bestIdxs;
+}
+
+function aiGreedyExtend(seedIdx) {
+  const p = currentPlayer();
+  const seed = p.hand[seedIdx];
+  if (!seed) return null;
+
+  // Try placing seed first
+  const seedPlacements = aiGetValidCells(seedIdx, []);
+  if (seedPlacements.length === 0) return null;
+
+  let bestLine = null, bestSc = -1;
+
+  for (const [col,row] of seedPlacements) {
+    const initPlace = [{col,row,tile:seed,handIdx:seedIdx}];
+    // Try extending in H and V directions
+    for (const horizontal of [true,false]) {
+      const extended = aiExtendLine(initPlace, horizontal);
+      const saved = G.pendingPlacements;
+      G.pendingPlacements = extended;
+      const sc = computeScore(extended);
+      G.pendingPlacements = saved;
+      if (sc > bestSc) { bestSc=sc; bestLine=[...extended]; }
+    }
+  }
+  return bestLine;
+}
+
+function aiExtendLine(current, horizontal) {
+  const p = currentPlayer();
+  const usedHandIdxs = new Set(current.map(pp=>pp.handIdx));
+
+  let extended = [...current];
+  let improved = true;
+  while (improved) {
+    improved = false;
+    for (let idx=0; idx<p.hand.length; idx++) {
+      if (usedHandIdxs.has(idx)) continue;
+      const tile = p.hand[idx];
+      // Try each adjacent cell along the line
+      const positions = extended.map(pp => horizontal?pp.col:pp.row);
+      const fixed = horizontal ? extended[0].row : extended[0].col;
+      const minP = Math.min(...positions), maxP = Math.max(...positions);
+
+      for (const pos of [minP-1, maxP+1]) {
+        const col = horizontal?pos:fixed;
+        const row = horizontal?fixed:pos;
+        if (G.board[`${col},${row}`]) continue;
+        if (extended.some(pp=>pp.col===col&&pp.row===row)) continue;
+
+        const testBoard = buildTestBoardWith(extended);
+        testBoard[`${col},${row}`] = tile;
+        const testPlacements = [...extended,{col,row,tile,handIdx:idx}];
+        const err = validateMove(testPlacements, testBoard);
+        if (!err) {
+          extended = testPlacements;
+          usedHandIdxs.add(idx);
+          improved = true;
+          break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+  return extended;
+}
+
+function buildTestBoardWith(placements) {
+  const b = {...G.board};
+  for (const pp of placements) b[`${pp.col},${pp.row}`] = pp.tile;
+  return b;
+}
+
+function aiGetValidCells(handIdx, existing) {
+  const p = currentPlayer();
+  const tile = p.hand[handIdx];
+  if (!tile) return [];
+
+  if (Object.keys(G.board).length===0 && existing.length===0) return [[0,0]];
+
+  const pending = new Set(existing.map(pp=>`${pp.col},${pp.row}`));
+  const allPlaced = [...Object.keys(G.board), ...existing.map(pp=>`${pp.col},${pp.row}`)];
+  const candidates = new Set();
+  for (const k of allPlaced) {
+    const [c,r]=k.split(',').map(Number);
+    for (const [dc,dr] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+      const nk=`${c+dc},${r+dr}`;
+      if (!G.board[nk] && !pending.has(nk)) candidates.add(nk);
+    }
+  }
+  const valid=[];
+  for (const k of candidates) {
+    const [col,row]=k.split(',').map(Number);
+    const tb = buildTestBoardWith(existing);
+    tb[k]=tile;
+    const err = validateMove([...existing,{col,row,tile,handIdx}],tb);
+    if (!err) valid.push([col,row]);
+  }
+  return valid;
+}
+
+// ══════════════════════════════════════════
+//  VALIDATION
+// ══════════════════════════════════════════
+function validateMove(placements, testBoard) {
+  if (placements.length===0) return 'Ei laattoja';
+  const cols=placements.map(p=>p.col), rows=placements.map(p=>p.row);
+  const sameCol=cols.every(c=>c===cols[0]), sameRow=rows.every(r=>r===rows[0]);
+  if (placements.length>1 && !sameCol && !sameRow) return 'Kaikki laatan täytyy olla samalla rivillä/sarakkeella';
+
+  if (Object.keys(G.board).length>0) {
+    const touches=placements.some(p=>{
+      return [[-1,0],[1,0],[0,-1],[0,1]].some(([dc,dr])=>G.board[`${p.col+dc},${p.row+dr}`]);
+    });
+    if (!touches) return 'Laatan täytyy koskettaa olemassa olevaa laattaa';
+  }
+
+  if (placements.length > 1) {
+    const mainHoriz = sameRow;
+    const mainLine = getLine(placements[0].col, placements[0].row, mainHoriz, testBoard);
+    const mainKeys = new Set(mainLine.map(t=>`${t.col},${t.row}`));
+    if (!placements.every(p=>mainKeys.has(`${p.col},${p.row}`))) {
+      return 'Laattojen tulee muodostaa yhtenäinen rivi';
+    }
+    const mainErr = checkTilesLine(mainLine);
+    if (mainErr) return mainErr;
+
+    for (const p of placements) {
+      const crossLine = getLine(p.col, p.row, !mainHoriz, testBoard);
+      if (crossLine.length > 1) {
+        const crossErr = checkTilesLine(crossLine);
+        if (crossErr) return crossErr;
+      }
+    }
+  } else {
+    const p = placements[0];
+    const hLine = getLine(p.col, p.row, true, testBoard);
+    const hErr = hLine.length > 1 ? checkTilesLine(hLine) : null;
+    if (hErr) return hErr;
+
+    const vLine = getLine(p.col, p.row, false, testBoard);
+    const vErr = vLine.length > 1 ? checkTilesLine(vLine) : null;
+    if (vErr) return vErr;
+  }
+  return null;
+}
+
+function checkTilesLine(tiles) {
+  if (tiles.length<=1) return null;
+  if (tiles.length>6) return 'Rivi voi olla enintään 6 laattaa pitkä';
+  const sameCol=tiles.every(t=>t.color===tiles[0].color);
+  const sameShp=tiles.every(t=>t.shape===tiles[0].shape);
+  if (!sameCol&&!sameShp) return 'Rivissä täytyy olla sama väri tai sama muoto';
+  const sigs=tiles.map(t=>sameCol?t.shape:t.color);
+  if (new Set(sigs).size!==sigs.length) return 'Rivissä ei voi olla kaksoiskappaleita';
+  return null;
+}
+
+function computeScore(placements) {
+  if (placements.length===0) return 0;
+  const tb=buildTestBoard();
+  let total=0; const counted=new Set();
+
+  for (const p of placements) {
+    const hLine=getLine(p.col,p.row,true,tb);
+    const hKey=`h,${p.row},${hLine.map(t=>t.col).sort().join('-')}`;
+    if (hLine.length>1&&!counted.has(hKey)){
+      counted.add(hKey); total+=hLine.length+(hLine.length===6?6:0);
+    }
+    const vLine=getLine(p.col,p.row,false,tb);
+    const vKey=`v,${p.col},${vLine.map(t=>t.row).sort().join('-')}`;
+    if (vLine.length>1&&!counted.has(vKey)){
+      counted.add(vKey); total+=vLine.length+(vLine.length===6?6:0);
+    }
+  }
+  if (placements.length===1) {
+    const h=getLine(placements[0].col,placements[0].row,true,tb);
+    const v=getLine(placements[0].col,placements[0].row,false,tb);
+    if (h.length===1&&v.length===1) total=1;
+  }
+  return total;
+}
+
+function getLine(col,row,horiz,board) {
+  const tiles=[{col,row,...board[`${col},${row}`]}];
+  for (const [dc,dr] of horiz?[[-1,0],[1,0]]:[[0,-1],[0,1]]) {
+    let c=col+dc,r=row+dr;
+    while(board[`${c},${r}`]){tiles.push({col:c,row:r,...board[`${c},${r}`]});c+=dc;r+=dr;}
+  }
+  return tiles;
+}
+
+// ══════════════════════════════════════════
+//  VALID PLACEMENTS HIGHLIGHT
+// ══════════════════════════════════════════
+function getValidPlacements() {
+  const p=currentPlayer();
+  const tile=p.hand[G.selectedTile];
+  if (!tile) return [];
+  if (Object.keys(G.board).length===0&&G.pendingPlacements.length===0) return [[0,0]];
+
+  const pending=new Set(G.pendingPlacements.map(pp=>`${pp.col},${pp.row}`));
+  const allPlaced=[...Object.keys(G.board),...G.pendingPlacements.map(pp=>`${pp.col},${pp.row}`)];
+  const candidates=new Set();
+  for (const k of allPlaced){
+    const [c,r]=k.split(',').map(Number);
+    for (const [dc,dr] of [[-1,0],[1,0],[0,-1],[0,1]]){
+      const nk=`${c+dc},${r+dr}`;
+      if (!G.board[nk]&&!pending.has(nk)) candidates.add(nk);
+    }
+  }
+  const valid=[];
+  for (const k of candidates){
+    const [col,row]=k.split(',').map(Number);
+    const tb=buildTestBoard(); tb[k]=tile;
+    const err=validateMove([...G.pendingPlacements,{col,row,tile,handIdx:G.selectedTile}],tb);
+    if (!err) valid.push([col,row]);
+  }
+  return valid;
+}
+
+// ══════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════
+function renderScores() {
+  document.getElementById('scores-bar').innerHTML = G.players.map((p,i)=>`
+    <div class="score-chip ${i===G.currentIdx?'active':''}">
+      <div class="player-dot" style="background:${p.color}"></div>
+      <span>${p.name}: ${p.score}</span>
+      ${p.isAI?'<span class="ai-badge">AI</span>':''}
+    </div>`).join('');
+}
+
+function renderHand() {
+  const p=currentPlayer();
+  const container=document.getElementById('hand-tiles');
+  container.innerHTML='';
+  p.hand.forEach((tile,idx)=>{
+    const placed=G.pendingPlacements.some(pp=>pp.handIdx===idx);
+    const sel=G.selectedTile===idx;
+    const discSel=G.discardSelected.includes(idx);
+    const el=document.createElement('div');
+    el.className='tile'+(sel?' selected':discSel?' discard-sel':placed?' placed-preview':'');
+    el.dataset.color=tile.color; el.dataset.shape=tile.shape;
+    el.innerHTML=shapeSVG(tile.shape);
+    if (discardMode) el.onclick=()=>toggleDiscardTile(idx);
+    else el.onclick=()=>selectTileInHand(idx);
+    container.appendChild(el);
+  });
+}
+
+function renderBoard() {
+  const boardEl=document.getElementById('board');
+  boardEl.innerHTML='';
+
+  const allKeys=Object.keys(G.board);
+  let allCols=[0],allRows=[0];
+  for (const k of allKeys){const[c,r]=k.split(',').map(Number);allCols.push(c);allRows.push(r);}
+  for (const pp of G.pendingPlacements){allCols.push(pp.col);allRows.push(pp.row);}
+
+  const minC=Math.min(...allCols)-2, maxC=Math.max(...allCols)+2;
+  const minR=Math.min(...allRows)-2, maxR=Math.max(...allRows)+2;
+  boardEl.style.width =((maxC-minC+1)*STRIDE)+'px';
+  boardEl.style.height=((maxR-minR+1)*STRIDE)+'px';
+
+  // Placed tiles
+  for (const k of allKeys){
+    const [col,row]=k.split(',').map(Number);
+    const cell=document.createElement('div');
+    cell.className='board-cell';
+    cell.style.left=((col-minC)*STRIDE)+'px';
+    cell.style.top =((row-minR)*STRIDE)+'px';
+    const te=makeTileEl(G.board[k]); te.style.cursor='default';
+    cell.appendChild(te); boardEl.appendChild(cell);
+  }
+
+  // Pending previews
+  for (const pp of G.pendingPlacements){
+    const cell=document.createElement('div');
+    cell.className='board-cell preview';
+    cell.style.left=((pp.col-minC)*STRIDE)+'px';
+    cell.style.top =((pp.row-minR)*STRIDE)+'px';
+    const te=makeTileEl(pp.tile); te.style.cursor='default';
+    cell.appendChild(te); boardEl.appendChild(cell);
+  }
+
+  // Valid targets
+  if (G.phase==='select'&&G.selectedTile!==null) {
+    for (const [col,row] of getValidPlacements()){
+      if (G.board[`${col},${row}`]) continue;
+      if (G.pendingPlacements.some(pp=>pp.col===col&&pp.row===row)) continue;
+      const cell=document.createElement('div');
+      cell.className='board-cell valid-target';
+      cell.style.left=((col-minC)*STRIDE)+'px';
+      cell.style.top =((row-minR)*STRIDE)+'px';
+      const c=col,r=row;
+      cell.onclick=e=>{e.stopPropagation();placeTile(c,r);};
+      boardEl.appendChild(cell);
+    }
+  }
+
+  if (!G.boardInitialized){
+    G.boardInitialized=true;
+    setTimeout(centerBoard,10);
+  }
+}
+
+function centerBoard(){
+  const cont=document.getElementById('board-container');
+  const bd=document.getElementById('board');
+  G.boardOffset={x:(cont.clientWidth-bd.offsetWidth)/2,y:(cont.clientHeight-bd.offsetHeight)/2};
+  applyBoardOffset();
+}
+
+function applyBoardOffset(){
+  document.getElementById('board-scroll').style.transform=`translate(${G.boardOffset.x}px,${G.boardOffset.y}px)`;
+}
+
+function makeTileEl(tile){
+  const el=document.createElement('div');
+  el.className='tile'; el.dataset.color=tile.color; el.dataset.shape=tile.shape;
+  el.style.cursor='default'; el.innerHTML=shapeSVG(tile.shape);
+  return el;
+}
+
+function setInfo(msg,type=''){
+  const el=document.getElementById('placement-info');
+  el.textContent=msg;
+  el.style.color=type==='ok'?'var(--green)':type==='err'?'var(--red)':'var(--text-dim)';
+}
+
+// ══════════════════════════════════════════
+//  END GAME
+// ══════════════════════════════════════════
+function endGame(){
+  G.gameOver=true;
+  const sorted=[...G.players].sort((a,b)=>b.score-a.score);
+  document.getElementById('end-content').innerHTML=`
+    <p style="text-align:center;font-size:15px;font-weight:700;color:var(--accent);margin-bottom:6px;">🎉 ${sorted[0].name} voitti!</p>
+    <div class="score-list">${sorted.map((p,i)=>`
+      <div class="score-row ${i===0?'winner-row':''}">
+        <span>${i===0?'🏆 ':''}${p.name}${p.isAI?' 🤖':''}</span>
+        <span>${p.score} pistettä</span>
+      </div>`).join('')}</div>`;
+  document.getElementById('end-screen').classList.add('shown');
+}
+
+// ══════════════════════════════════════════
+//  BOARD DRAG (mouse + touch)
+// ══════════════════════════════════════════
+const boardContainer=document.getElementById('board-container');
+let drag=null, touchDrag=null;
+
+boardContainer.addEventListener('mousedown',e=>{
+  if (e.target.classList.contains('valid-target')) return;
+  drag={sx:e.clientX-G.boardOffset.x,sy:e.clientY-G.boardOffset.y};
+  boardContainer.classList.add('grabbing');
+});
+document.addEventListener('mousemove',e=>{
+  if (!drag) return;
+  G.boardOffset={x:e.clientX-drag.sx,y:e.clientY-drag.sy};
+  applyBoardOffset();
+});
+document.addEventListener('mouseup',()=>{drag=null;boardContainer.classList.remove('grabbing');});
+
+boardContainer.addEventListener('touchstart',e=>{
+  if (e.touches.length!==1) return;
+  if (e.target.classList.contains('valid-target')) return;
+  const t=e.touches[0];
+  touchDrag={sx:t.clientX-G.boardOffset.x,sy:t.clientY-G.boardOffset.y};
+},{passive:true});
+boardContainer.addEventListener('touchmove',e=>{
+  if (!touchDrag||e.touches.length!==1) return;
+  const t=e.touches[0];
+  G.boardOffset={x:t.clientX-touchDrag.sx,y:t.clientY-touchDrag.sy};
+  applyBoardOffset(); e.preventDefault();
+},{passive:false});
+boardContainer.addEventListener('touchend',()=>{touchDrag=null;});
+
+// ══════════════════════════════════════════
+//  SHAPES (SVG)
+// ══════════════════════════════════════════
+function shapeSVG(shape){
+  const s=36,c=s/2,fill='rgba(255,255,255,0.93)',st='rgba(0,0,0,0.22)',sw=1.5;
+  switch(shape){
+    case 'circle':
+      return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><circle cx="${c}" cy="${c}" r="${c-3}" fill="${fill}" stroke="${st}" stroke-width="${sw}"/></svg>`;
+    case 'square':
+      return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><rect x="4" y="4" width="${s-8}" height="${s-8}" rx="3" fill="${fill}" stroke="${st}" stroke-width="${sw}"/></svg>`;
+    case 'diamond':
+      return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><polygon points="${c},3 ${s-3},${c} ${c},${s-3} 3,${c}" fill="${fill}" stroke="${st}" stroke-width="${sw}"/></svg>`;
+    case 'clover':{
+      const r=7;
+      return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+        <circle cx="${c}" cy="${c-r}" r="${r}" fill="${fill}"/>
+        <circle cx="${c+r}" cy="${c}" r="${r}" fill="${fill}"/>
+        <circle cx="${c}" cy="${c+r}" r="${r}" fill="${fill}"/>
+        <circle cx="${c-r}" cy="${c}" r="${r}" fill="${fill}"/>
+        <rect x="${c-5}" y="${c-5}" width="10" height="10" fill="${fill}"/>
+        <circle cx="${c}" cy="${c-r}" r="${r}" fill="none" stroke="${st}" stroke-width="${sw}"/>
+        <circle cx="${c+r}" cy="${c}" r="${r}" fill="none" stroke="${st}" stroke-width="${sw}"/>
+        <circle cx="${c}" cy="${c+r}" r="${r}" fill="none" stroke="${st}" stroke-width="${sw}"/>
+        <circle cx="${c-r}" cy="${c}" r="${r}" fill="none" stroke="${st}" stroke-width="${sw}"/>
+      </svg>`;}
+    case 'star':
+      return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><polygon points="${starPts(c,c,c-3,c-10,4)}" fill="${fill}" stroke="${st}" stroke-width="${sw}"/></svg>`;
+    case 'starburst':
+      return `<svg width="${s}" height="${s}" viewBox="0 0 ${s} ${s}"><polygon points="${starPts(c,c,c-3,c-10,8)}" fill="${fill}" stroke="${st}" stroke-width="${sw}"/></svg>`;
+  }
+}
+function starPts(cx,cy,outerR,innerR,n){
+  return Array.from({length:n*2},(_,i)=>{
+    const a=(i*Math.PI/n)-Math.PI/2, r=i%2===0?outerR:innerR;
+    return `${cx+r*Math.cos(a)},${cy+r*Math.sin(a)}`;
+  }).join(' ');
+}
+
+// ══════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════
+function shuffle(arr){
+  for (let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+}
+function bestGroupSize(hand){
+  let best=0;
+  for (const c of COLORS){const cnt=new Set(hand.filter(t=>t.color===c).map(t=>t.shape)).size;best=Math.max(best,cnt);}
+  for (const s of SHAPES){const cnt=new Set(hand.filter(t=>t.shape===s).map(t=>t.color)).size;best=Math.max(best,cnt);}
+  return best;
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => {
+      console.warn('Service worker registration failed', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
