@@ -1,1 +1,4 @@
 .tmp-playwright/
+data/
+*-portrait*.png
+*-landscape*.png
