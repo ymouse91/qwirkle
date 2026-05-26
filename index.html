@@ -21,7 +21,7 @@
     --accent: #f0c040;
     --accent2: #e06030;
     --text: #e8e8f0;
-    --text-dim: #888899;
+    --text-dim: #bbbbcc;
     --cell: #1e1e2e;
     --red: #e63946;
     --orange: #f4843d;
@@ -444,6 +444,7 @@
   <div id="turn-info">Vuorossa: <span id="current-player-name">—</span></div>
   <div id="header-right">
     <div id="bag-info">Pussi: <span id="bag-count">108</span></div>
+    <button class="btn-icon" onclick="showRules()">Ohjeet</button>
     <button class="btn-icon" onclick="showSetup()">Uusi peli</button>
   </div>
 </div>
@@ -1460,6 +1461,15 @@ function starPts(cx,cy,outerR,innerR,n){
   }).join(' ');
 }
 
+
+function showRules() {
+  document.getElementById('rules-modal').style.display = 'flex';
+}
+
+function hideRules() {
+  document.getElementById('rules-modal').style.display = 'none';
+}
+
 // ══════════════════════════════════════════
 //  UTILS
 // ══════════════════════════════════════════
@@ -1483,5 +1493,57 @@ if ('serviceWorker' in navigator) {
   });
 }
 </script>
+
+<!-- RULES MODAL -->
+<div class="modal-overlay" id="rules-modal" style="display:none;">
+  <div class="modal">
+    <h2>Ohjeet</h2>
+
+    <div style="font-size:13px;line-height:1.5;color:var(--text);display:flex;flex-direction:column;gap:10px;">
+
+      <div>
+        <strong>Tavoite</strong><br>
+        Kerää eniten pisteitä muodostamalla rivejä saman värisistä tai saman muotoisista laatoista.
+      </div>
+
+      <div>
+        <strong>Rivit</strong><br>
+        Rivissä kaikki laatat ovat:
+        <ul style="margin-left:18px;margin-top:4px;">
+          <li>samaa väriä mutta eri muotoja TAI</li>
+          <li>samaa muotoa mutta eri värejä</li>
+        </ul>
+      </div>
+
+      <div>
+        <strong>Pisteet</strong><br>
+        Jokainen rivin laatta antaa 1 pisteen.<br>
+        Jos muodostat 6 laatan täydellisen rivin, saat lisäksi <strong>Qwirkle +6</strong> bonuspistettä.
+      </div>
+
+      <div>
+        <strong>Vuoro</strong><br>
+        Vuorolla voit:
+        <ul style="margin-left:18px;margin-top:4px;">
+          <li>pelata yhden tai useamman laatan</li>
+          <li>tai vaihtaa laattoja pussista</li>
+        </ul>
+      </div>
+
+      <div>
+        <strong>Pelin loppu</strong><br>
+        Peli päättyy kun pussi on tyhjä ja joku pelaajista käyttää viimeiset laatat kädestään.
+      </div>
+
+    </div>
+
+    <button class="btn btn-primary"
+      style="width:100%;margin-top:16px;"
+      onclick="hideRules()">
+      Sulje
+    </button>
+  </div>
+</div>
+
 </body>
 </html>
