@@ -1,9 +1,13 @@
-const CACHE_NAME = 'qwirkle-v2';
+const CACHE_NAME = 'qwirkle-v3';
 const PRECACHE_URLS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icon.svg'
+  './icon.svg',
+  './fonts/bebas-neue-latin.woff2',
+  './fonts/bebas-neue-latin-ext.woff2',
+  './fonts/nunito-latin.woff2',
+  './fonts/nunito-latin-ext.woff2'
 ];
 
 self.addEventListener('install', event => {
